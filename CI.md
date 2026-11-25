@@ -1,10 +1,39 @@
 # Continuous integration
 
-[CI](.github/workflows/ci.yml) runs on every push and pull request, without path
+[CI](.github/workflows/ci.yml) runs when started by hand, without path
 filters. Its five jobs check Python, JavaScript/TypeScript and Rust independently
 and run the native and browser suites. `CI required` fails if any job fails,
-is canceled or is skipped. Select **CI required** as a required status check in
-the repository's branch rules to enforce it on merges.
+is canceled or is skipped. Nothing requires it on merges yet.
+
+## Planned structure
+
+This is the agreed design; it replaces the hand-started runs above as it lands.
+
+- **Pull requests run CI on request.** A run starts when a pull request into
+  `main` opens ready or is marked ready, and when the `ci:run` label is added.
+  A push to a ready pull request cancels its run in progress. There is no
+  per-author run limit: runs use GitHub's hosted runners, which cost nothing for
+  a public repository, and the request model plus GitHub's approval of
+  first-time contributors bounds them.
+- **`main` is protected.** Merges require `CI required` and a code owner's
+  approval, and rebase is the only merge method.
+- **Every push to `main` runs CI.** GitHub shares caches only from the default
+  branch with pull requests, so these runs keep the caches warm for every pull
+  request.
+- **Build once, fan out.** One build job produces the heavy outputs, the
+  WebAssembly emulator, the JavaScript bindings and the Python native extension,
+  and the test jobs download them instead of compiling their own. Rust compiles
+  go through a compiler cache, and each output restores only on the exact key of
+  the inputs it reads.
+- **`main` publishes its outputs.** Each passing `main` commit uploads those
+  outputs as artifacts named by commit, for builds that pin a FujiMod commit to
+  download instead of compiling; they build from source when no artifact exists.
+  Uploads expire after a few days, a cleanup step after each `main` run deletes
+  all but the newest five commits' outputs, and their total stays under a fixed
+  size cap below the account's artifact storage.
+- **The nightly web deploy ships the newest `main` commit that passed CI,**
+  reusing its outputs, instead of running the checks itself. A broken check
+  fails the pull request that broke it rather than blocking deploys.
 
 ## Language policy
 
